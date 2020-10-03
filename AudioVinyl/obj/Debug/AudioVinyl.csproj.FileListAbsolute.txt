@@ -1,0 +1,7 @@
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\obj\Debug\AudioVinyl.csprojAssemblyReference.cache
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\obj\Debug\AudioVinyl.csproj.CoreCompileInputs.cache
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\bin\Debug\AudioVinyl.exe.config
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\bin\Debug\AudioVinyl.exe
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\bin\Debug\AudioVinyl.pdb
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\obj\Debug\AudioVinyl.exe
+C:\Users\benja\source\repos\AudioVinyl\AudioVinyl\obj\Debug\AudioVinyl.pdb
