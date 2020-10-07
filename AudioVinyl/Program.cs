@@ -200,95 +200,118 @@ namespace VinylAudio
             }
             return resultat;
         }
-        static double[] EcrasementBoum(double[] inputs, int fe, double T_fenetre, double lambda)
+        public static double[] Filtrer(double[] x, int Ordre, double f0, double deltaf, double fe)
         {
-            int nfenetre = (int)(T_fenetre * fe);
-            int n = inputs.Length;
-            double[] result = new double[n];
-            int ifin = Math.Max(0, Math.Min(inputs.Length - 1, nfenetre));
-            double vmax = 0;
-            int indiceMax = 0;
-            for (int k = 0; k <= ifin; k++)
+            //Filtre le signal x par bande centrée sur f0 et de largeur deltaf, avec un ordre donné, sachant la frequence d'echantillonage fe 
+            double[] filtre = new double[Ordre];
+            for (int i = 0; i < Ordre; i++)
             {
-                if (Math.Abs(inputs[k]) > vmax)
-                {
-                    vmax = Math.Abs(inputs[k]);
-                    indiceMax = k;
-                }
+                double t = ((double)i - (Ordre / 2.0)) / fe;
+                double cos = Math.Cos(2.0 * Math.PI * f0 * t);
+                double sincard = sinc(Math.PI * deltaf * t) * (deltaf / fe);
+                filtre[i] = cos * sincard;
             }
-            for (int i=0;i<n;i++)
+            return CentrerConv(Conv(x, filtre), x.Length);
+        }
+        public static double[] TransposerFreq(double[] x, double fp, double fe)
+        {
+            //Transpose le signal x sur fp et -fp, sachant fe la frequence d'echantillonage
+            double[] ret = copiedb(x);
+            for (int i = 0; i < ret.Length; i++)
             {
-                ifin = Math.Max(0, Math.Min(inputs.Length - 1, i+nfenetre));
-                if(Math.Abs(inputs[ifin])>vmax)
+                double t = ((double)i - (ret.Length / 2.0)) / fe;
+                double cos = Math.Cos(2.0 * Math.PI * fp * t); ;
+                ret[i] = ret[i] * cos;
+            }
+            return ret
+;
+        }
+        public static double[] DSP(double[] x, int N)
+        {
+            //Calcul la dsp de x, en N points, entre -fe et fe
+            int n = x.GetLength(0);
+            double[] retour = new double[N];
+            double[] retour_ = new double[N];
+            for (int i = 0; i < N; i++)
+            {
+                if (i % 100 == 0)
+                    Console.WriteLine(i + "/" + N);
+                double re = 0;
+                double im = 0;
+                for (int k = 0; k < n; k++)
                 {
-                    vmax = Math.Abs(inputs[ifin]);
-                    indiceMax = ifin;
+                    re += x[k] * Math.Cos(-2.0 * Math.PI * (double)k * (double)i / (double)N);
+                    im += x[k] * Math.Sin(-2.0 * Math.PI * (double)k * (double)i / (double)N);
                 }
-                if(indiceMax<i-nfenetre)
+                retour[i] = (re * re + im * im) / ((double)N);
+            }
+            for (int i = N / 2; i < N; i++)
+            {
+                retour_[i - N / 2] = retour[i];
+                retour_[i] = retour[i - N / 2];
+            }
+            return retour_;
+        }
+
+        //Outils
+        public static int nexpPow2(int N)
+        {
+            return (int)Math.Pow(2, Math.Floor(Math.Log(N, 2)) + 1);
+        }
+        public static double sinc(double x)
+        {
+            //Sinus cardinal de x
+            if (x == 0)
+            {
+                return 1;
+            }
+            else
+            {
+                return Math.Sin(x) / x;
+            }
+        }
+        public static double[] Conv(double[] u, double[] v)
+        {
+            //Convolue u et v
+            int n = u.Length;
+            int p = v.Length;
+            double[] res = new double[n + p - 1];
+            for (int i = 0; i < n + p + -1; i++)
+            {
+                double s = 0;
+                for (int j = 0; j < p; j++)
                 {
-                    int istart = Math.Max(0, Math.Min(inputs.Length - 1, i-nfenetre));
-                    for (int k = istart; k <= ifin; k++)
+                    int z = i - p + 1 + j;
+                    if (z < n && z >= 0)
                     {
-                        if (Math.Abs(inputs[k]) > vmax)
-                        {
-                            vmax = Math.Abs(inputs[k]);
-                            indiceMax = k;
-                        }
+                        s += v[j] * u[z];
                     }
                 }
-                double val = inputs[i];
-                double prop = val / vmax;
-                double nval =Math.Sin(0.5 * Math.PI * prop);
-                result[i] = Math.Sign(nval)*Math.Pow(Math.Abs(nval),lambda);
-                if(i%1000==0)
-                Console.WriteLine((double)i / n);
+                res[i] = s;
             }
-            return result;
+            return res;
         }
-        //A reparer
-        static double[] IntensiteSonore(double[] inputs, int fe, double T_fenetre)
+        public static double[] CentrerConv(double[] c, int n)
         {
-            int nfenetre = (int)(T_fenetre * fe);
-            double[] retour = new double[inputs.Length];
-
-            int ifin = Math.Max(0, Math.Min(inputs.Length - 1, nfenetre));
-            double moy = 0;
-            for (int k = 0; k <= nfenetre-1; k++)
+            //Centre le retour d'un produit de convolution pour qu'il ait une taille n
+            double[] retour = new double[n];
+            int delta = (c.Length - n) / 2;
+            for (int i = 0; i < n; i++)
             {
-                ifin = Math.Max(0, Math.Min(inputs.Length - 1, k + nfenetre));
-                int istart = Math.Max(0, Math.Min(inputs.Length - 1, k - nfenetre));
-                moy = 0;
-                for(int u=istart;u<=ifin;u++)
-                {
-                    moy += Math.Abs(retour[u]);
-                }
-                moy = moy / (ifin - istart + 1);
-                retour[k] = moy;
-            }
-            
-            for(int i=nfenetre;i<inputs.Length-nfenetre;i++)
-            {
-                ifin = Math.Max(0, Math.Min(inputs.Length - 1, i + nfenetre));
-                int istart = Math.Max(0, Math.Min(inputs.Length - 1, i - nfenetre));
-                moy += (Math.Abs(inputs[ifin])-Math.Abs(inputs[istart])) / nfenetre;
-                retour[i] = moy;
-            }
-
-            for (int k = inputs.Length - nfenetre; k <= inputs.Length-nfenetre - 1; k++)
-            {
-                ifin = Math.Max(0, Math.Min(inputs.Length - 1, k + nfenetre));
-                int istart = Math.Max(0, Math.Min(inputs.Length - 1, k - nfenetre));
-                moy = 0;
-                for (int u = istart; u <= ifin; u++)
-                {
-                    moy += Math.Abs(retour[u]);
-                }
-                moy = moy / (ifin - istart + 1);
-                retour[k] = moy;
+                retour[i] = c[i + delta];
             }
             return retour;
         }
-
-
+        private static double[] copiedb(double[] V1)
+        {
+            //renvoie une copie de V1
+            int Taille = V1.Length;
+            double[] Resultat = new double[Taille];
+            for (int i = 0; i < Taille; i++)
+            {
+                Resultat[i] = V1[i];
+            }
+            return Resultat;
+        }
     }
 }
