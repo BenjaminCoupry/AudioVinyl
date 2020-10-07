@@ -252,6 +252,8 @@ namespace VinylAudio
             }
             return retour_;
         }
+        //TODO : echo
+
 
         //Outils
         public static int nexpPow2(int N)
