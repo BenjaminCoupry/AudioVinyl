@@ -17,10 +17,11 @@ namespace VinylAudio
             double[] bruited = InstabiliteAmplitude(vinyled, W1.Item2, 0.5, 0.6, ref r);
             Console.WriteLine("...");
             bruited = EffetCrepitement(bruited, W1.Item2, 5, 0.5, 0.001, 40, 900, ref r);
-            
+            double[] filtred = FiltrerMinMax(bruited, 100,400, 15000, W1.Item2);
             //double[] bruited = EcrasementBoum(W1.Item1, W1.Item2, 0.1, 5);
             //Variation perlin de l'intensite sonore
-            VersWav(W1.Item2, "D:/lab/Audio/test_ar.wav", bruited);
+            VersWav(W1.Item2, "D:/lab/Audio/test_nf.wav", FiltrerMinMax(Reechantilloner(Discretiser(W1.Item1,10),W1.Item2,500),100,0,1000,W1.Item2));
+            VersWav(W1.Item2, "D:/lab/Audio/test_f.wav", filtred);
         }
         static void VersWav(int fe, string Path, double[] inputs)
         {
@@ -200,6 +201,34 @@ namespace VinylAudio
             }
             return resultat;
         }
+        static double[] Discretiser(double[] inputs, int nbNivEchant)
+        {
+            double[] result = new double[inputs.Length];
+            for (int i = 0; i < inputs.Length; i++)
+            {
+                double v = inputs[i];
+                result[i] = 1.0/(2.0*nbNivEchant)+Math.Floor(v * nbNivEchant ) / (double)nbNivEchant;
+            }
+            return result;
+        }
+        static double[] Reechantilloner(double[] inputs, int fe, int nouv_fe)
+        {
+            int ratioEch = fe / nouv_fe;
+            double[] result = new double[inputs.Length];
+            int u0 = 0;
+            double val = inputs[0];
+            for (int i = 0; i < inputs.Length; i++)
+            {
+                result[i] = val;
+                u0++;
+                if (u0 == ratioEch)
+                {
+                    u0 = 0;
+                    val = inputs[i];
+                }
+            }
+            return result;
+        }
         public static double[] Filtrer(double[] x, int Ordre, double f0, double deltaf, double fe)
         {
             //Filtre le signal x par bande centrée sur f0 et de largeur deltaf, avec un ordre donné, sachant la frequence d'echantillonage fe 
@@ -208,10 +237,14 @@ namespace VinylAudio
             {
                 double t = ((double)i - (Ordre / 2.0)) / fe;
                 double cos = Math.Cos(2.0 * Math.PI * f0 * t);
-                double sincard = sinc(Math.PI * deltaf * t) * (deltaf / fe);
+                double sincard = 2.0*sinc(Math.PI * deltaf * t) * (deltaf / fe);
                 filtre[i] = cos * sincard;
             }
             return CentrerConv(Conv(x, filtre), x.Length);
+        }
+        public static double[] FiltrerMinMax(double[] x, int Ordre, double fmin, double fmax, double fe)
+        {
+            return Filtrer(x, Ordre,((fmin+fmax)/2.0),fmax-fmin, fe);
         }
         public static double[] TransposerFreq(double[] x, double fp, double fe)
         {
