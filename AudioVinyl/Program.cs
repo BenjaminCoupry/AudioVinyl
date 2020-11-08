@@ -13,15 +13,15 @@ namespace VinylAudio
         {
             Tuple<double[], int> W1 = FromWav("D:/lab/Audio/daft1.wav");
             Random r = new Random(45645);
-            double[] vinyled = EffetVinyle(W1.Item1, W1.Item2, 6, 0.025, ref r);
-            double[] bruited = InstabiliteAmplitude(vinyled, W1.Item2, 0.5, 0.6, ref r);
-            Console.WriteLine("...");
-            bruited = EffetCrepitement(bruited, W1.Item2, 5, 0.5, 0.001, 40, 900, ref r);
-            double[] filtred = FiltrerMinMax(bruited, 100,400, 15000, W1.Item2);
+            //double[] vinyled = EffetVinyle(W1.Item1, W1.Item2, 6, 0.025, ref r);
+            //double[] bruited = InstabiliteAmplitude(vinyled, W1.Item2, 0.5, 0.6, ref r);
+            //Console.WriteLine("...");
+            //bruited = EffetCrepitement(bruited, W1.Item2, 5, 0.5, 0.001, 40, 900, ref r);
+            //double[] filtred = FiltrerMinMax(bruited, 100,400, 15000, W1.Item2);
             //double[] bruited = EcrasementBoum(W1.Item1, W1.Item2, 0.1, 5);
             //Variation perlin de l'intensite sonore
-            VersWav(W1.Item2, "D:/lab/Audio/test_nf.wav", FiltrerMinMax(Reechantilloner(Discretiser(W1.Item1,10),W1.Item2,500),100,0,1000,W1.Item2));
-            VersWav(W1.Item2, "D:/lab/Audio/test_f.wav", filtred);
+            VersWav(W1.Item2, "D:/lab/Audio/test_Shifted.wav",ShiftFreqence(W1.Item1,W1.Item2,500,30,10000,100));
+            //VersWav(W1.Item2, "D:/lab/Audio/test_f.wav", filtred);
         }
         static void VersWav(int fe, string Path, double[] inputs)
         {
@@ -96,6 +96,45 @@ namespace VinylAudio
             return new Tuple<double[], int>(retour, samplerate);
         }
 
+        static double[] Tune(double[] inputs, double fe, double f0, double fmin)
+        {
+            //TODO (penser a utiliser fmaxintensite.
+            //Couper en morceaux, trouver fmaxintensite pour chaque
+            
+            return new double[0];
+        }
+        static double[] ShiftFreqence(double[] inputs,double fe, double df,double fmin, double fmax, int ordre)
+        {
+            //Eloigne le spectre de dF de l'origine
+            int n = inputs.GetLength(0);
+            double[] retour = new double[n];
+            double f0 = 0;
+            int n_ = 0;
+            double[] travail = FiltrerMinMax(inputs, ordre, fmin, fmax, fe);
+            while (f0 < fmax - df)
+            {
+                n_++;
+                Console.WriteLine("f0:" + f0);
+                //Selectionner un morceau de spectre de largeur 2df et le deplacer
+                double fbas = Math.Max(0, f0 - df);
+                double fhaut = Math.Max(0, f0 + df);
+                double[] aShift = FiltrerMinMax(travail, ordre, fbas, fhaut, fe);
+                double[] shifted = TransposerFreq(aShift, df, fe);
+                fbas = Math.Max(0, f0);
+                fhaut = Math.Max(0, f0 + 2*df);
+                double[] cleaned = FiltrerMinMax(shifted, ordre, fbas, fhaut, fe);
+                //Ajouter ce morceau au resultat
+                VersWav((int)fe, "D:/lab/Audio/temp/"+n_+".wav", cleaned);
+                Console.WriteLine(cleaned.Max());
+                for(int i=0;i<cleaned.Length;i++)
+                {
+                    double added = cleaned[i];
+                    retour[i] += added;
+                }
+                f0 += 2 * Math.Abs(df);
+            }
+            return FiltrerMinMax(retour,ordre,Math.Max(0,df),fmax,fe);
+        }
         static double[] EffetCrepitement(double[] inputs, int fe, double F_Crepit, double Amp_Crepit,double T_crepit,double fmin_bruit,double fmax_bruit, ref Random r)
         {
             int nbCrepit = (int)(F_Crepit * inputs.Length / fe);
@@ -211,7 +250,7 @@ namespace VinylAudio
             }
             return result;
         }
-        static double[] Reechantilloner(double[] inputs, int fe, int nouv_fe)
+        static double[] ReechantillonerDiscret(double[] inputs, int fe, int nouv_fe)
         {
             int ratioEch = fe / nouv_fe;
             double[] result = new double[inputs.Length];
@@ -229,7 +268,7 @@ namespace VinylAudio
             }
             return result;
         }
-        public static double[] Filtrer(double[] x, int Ordre, double f0, double deltaf, double fe)
+        static double[] Filtrer(double[] x, int Ordre, double f0, double deltaf, double fe)
         {
             //Filtre le signal x par bande centrée sur f0 et de largeur deltaf, avec un ordre donné, sachant la frequence d'echantillonage fe 
             double[] filtre = new double[Ordre];
@@ -242,11 +281,13 @@ namespace VinylAudio
             }
             return CentrerConv(Conv(x, filtre), x.Length);
         }
-        public static double[] FiltrerMinMax(double[] x, int Ordre, double fmin, double fmax, double fe)
+        static double[] FiltrerMinMax(double[] x, int Ordre, double fmin, double fmax, double fe)
         {
-            return Filtrer(x, Ordre,((fmin+fmax)/2.0),fmax-fmin, fe);
+            double m0 = Math.Max(0,Math.Min(fmin,fmax));
+            double m1 = Math.Max(0,Math.Max(fmin, fmax));
+            return Filtrer(x, Ordre,((m0+m1)/2.0),m1-m0, fe);
         }
-        public static double[] TransposerFreq(double[] x, double fp, double fe)
+        static double[] TransposerFreq(double[] x, double fp, double fe)
         {
             //Transpose le signal x sur fp et -fp, sachant fe la frequence d'echantillonage
             double[] ret = copiedb(x);
@@ -259,16 +300,15 @@ namespace VinylAudio
             return ret
 ;
         }
-        public static double[] DSP(double[] x, int N)
+        static double[] DSP(double[] x, int N)
         {
-            //Calcul la dsp de x, en N points, entre -fe et fe
+            //Calcul la dsp de x, en N points, entre 0 et fe
             int n = x.GetLength(0);
-            double[] retour = new double[N];
-            double[] retour_ = new double[N];
-            for (int i = 0; i < N; i++)
+            double[] retour = new double[N/2];
+            for (int i =0; i < N/2; i++)
             {
                 if (i % 100 == 0)
-                    Console.WriteLine(i + "/" + N);
+                    Console.WriteLine(i + "/" + (N/2));
                 double re = 0;
                 double im = 0;
                 for (int k = 0; k < n; k++)
@@ -278,13 +318,42 @@ namespace VinylAudio
                 }
                 retour[i] = (re * re + im * im) / ((double)N);
             }
-            for (int i = N / 2; i < N; i++)
-            {
-                retour_[i - N / 2] = retour[i];
-                retour_[i] = retour[i - N / 2];
-            }
-            return retour_;
+
+            return retour;
         }
+        static double fMaxIntesnsite(double[] x, double fe, double fmin, int resolution)
+        {
+            //Renvoie la frequence au dela de fmin qui est le plus grand pic de dsp
+            double[] DSp = DSP(x, nexpPow2(resolution));
+            double dspmax = 0;
+            double fmax = fmin;
+            for(int i=0;i<DSp.Length;i++)
+            {
+                double f = (i / (double)DSp.Length) * fe;
+                if(f>fmin)
+                {
+                    if(DSp[i]>dspmax)
+                    {
+                        dspmax = DSp[i];
+                        fmax = f;
+                    }
+                }
+            }
+            return fmax;
+        }
+        static double[] multiplierFreq(double[]x, int fe, double kmult)
+        {
+            List<double> temps = new List<double>();
+            double t = 0;
+            double T = x.Length / (double)fe;
+            while(t<T)
+            {
+                temps.Add(t);
+                t += kmult * (1.0 / fe);
+            }
+            return ParcoursTemporel(x, fe, temps.ToArray());
+        }
+        
         //TODO : echo
 
 
