@@ -11,7 +11,7 @@ namespace VinylAudio
     {
         static void Main(string[] args)
         {
-            Tuple<double[], int> W1 = FromWav("D:/lab/Audio/daft1.wav");
+            Tuple<double[], int> W1 = FromWav("D:/lab/Audio/lala.wav");
             Random r = new Random(45645);
             //double[] vinyled = EffetVinyle(W1.Item1, W1.Item2, 6, 0.025, ref r);
             //double[] bruited = InstabiliteAmplitude(vinyled, W1.Item2, 0.5, 0.6, ref r);
@@ -20,8 +20,8 @@ namespace VinylAudio
             //double[] filtred = FiltrerMinMax(bruited, 100,400, 15000, W1.Item2);
             //double[] bruited = EcrasementBoum(W1.Item1, W1.Item2, 0.1, 5);
             //Variation perlin de l'intensite sonore
-            VersWav(W1.Item2, "D:/lab/Audio/test_Shifted.wav",ShiftFreqence(W1.Item1,W1.Item2,500,30,10000,100));
-            //VersWav(W1.Item2, "D:/lab/Audio/test_f.wav", filtred);
+            //VersWav(W1.Item2, "D:/lab/Audio/test_Shifted.wav",ShiftFreqence(W1.Item1,W1.Item2,500,30,10000,100));
+            VersWav(W1.Item2, "D:/lab/Audio/test_autotune.wav", Tune(W1.Item1,W1.Item2,220,0.3,400,1000));
         }
         static void VersWav(int fe, string Path, double[] inputs)
         {
@@ -96,12 +96,29 @@ namespace VinylAudio
             return new Tuple<double[], int>(retour, samplerate);
         }
 
-        static double[] Tune(double[] inputs, double fe, double f0, double fmin)
+        static double[] Tune(double[] inputs, double fe, double f0, double T, double fmin, int resolution)
         {
             //TODO (penser a utiliser fmaxintensite.
             //Couper en morceaux, trouver fmaxintensite pour chaque
-            
-            return new double[0];
+            List<double[]> echants = Split(inputs, (int)fe, T);
+            List<double[]> tuned = new List<double[]>();
+            double ratioNote = Math.Pow(2, 1.0 / 12.0);
+            int n_ = 0;
+            foreach(double[] ech in echants)
+            {
+                n_++;
+                Console.WriteLine(n_ + "/" + echants.Count);
+                double fdominante = fPremierPic(ech, fe, fmin, resolution,10);
+                Console.WriteLine("fdominante : " + fdominante);
+                
+                double n = Math.Max(1.0,Math.Round(Math.Log(fdominante / f0,ratioNote)));
+                Console.WriteLine("note : " + n);
+                double ratio = (f0*Math.Pow(ratioNote,n)) / fdominante;
+                Console.WriteLine("Correction : " + ratio);
+                double[] correct = multiplierFreq(ech, (int)fe, ratio);
+                tuned.Add(correct);
+            }
+            return UnSplit(tuned);
         }
         static double[] ShiftFreqence(double[] inputs,double fe, double df,double fmin, double fmax, int ordre)
         {
@@ -307,8 +324,6 @@ namespace VinylAudio
             double[] retour = new double[N/2];
             for (int i =0; i < N/2; i++)
             {
-                if (i % 100 == 0)
-                    Console.WriteLine(i + "/" + (N/2));
                 double re = 0;
                 double im = 0;
                 for (int k = 0; k < n; k++)
@@ -321,20 +336,23 @@ namespace VinylAudio
 
             return retour;
         }
-        static double fMaxIntesnsite(double[] x, double fe, double fmin, int resolution)
+        //TODO a revoir
+        static double fPremierPic(double[] x, double fe, double fmin, int resolution,double treshhold)
         {
             //Renvoie la frequence au dela de fmin qui est le plus grand pic de dsp
+            
             double[] DSp = DSP(x, nexpPow2(resolution));
-            double dspmax = 0;
+            double vmax = 0;
             double fmax = fmin;
             for(int i=0;i<DSp.Length;i++)
             {
                 double f = (i / (double)DSp.Length) * fe;
+                double val = DSp[i];
                 if(f>fmin)
                 {
-                    if(DSp[i]>dspmax)
+                    if(val>vmax)
                     {
-                        dspmax = DSp[i];
+                        vmax = val;
                         fmax = f;
                     }
                 }
@@ -353,7 +371,45 @@ namespace VinylAudio
             }
             return ParcoursTemporel(x, fe, temps.ToArray());
         }
-        
+        static double[] UnSplit(List<double[]> parts)
+        {
+            int N = parts.Sum(x => x.Length);
+            double[] ret = new double[N];
+            int n = 0;
+            foreach (double[] part in parts)
+            {
+                foreach (double ec in part)
+                {
+                    ret[n] = ec;
+                    n++;
+                }
+            }
+            return ret;
+        }
+        static List<double[]> Split(double[] vals,int fe, double T)
+        {
+
+            int n_sub = (int)(T * fe);
+
+            List<double[]> retour = new List<double[]>();
+            double[] ret = new double[n_sub];
+            int n = 0;
+            int n_ = 0;
+            while (n < vals.Length)
+            {
+                ret[n_] = vals[n];
+                n++;
+                n_++;
+                if (n_ == n_sub)
+                {
+                    n_ = 0;
+                    retour.Add(ret);
+                    ret = new double[n_sub];
+                }
+            }
+            return retour;
+        }
+
         //TODO : echo
 
 
